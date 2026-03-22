@@ -551,10 +551,10 @@ func nodeSelectorTermMatches(term corev1.NodeSelectorTerm, pool *kubenodesmithv1
 			if err != nil {
 				return false, false
 			}
-			if expr.Operator == corev1.NodeSelectorOpGt && !(labelVal > reqVal) {
+			if expr.Operator == corev1.NodeSelectorOpGt && labelVal <= reqVal {
 				return false, false
 			}
-			if expr.Operator == corev1.NodeSelectorOpLt && !(labelVal < reqVal) {
+			if expr.Operator == corev1.NodeSelectorOpLt && labelVal >= reqVal {
 				return false, false
 			}
 		}
