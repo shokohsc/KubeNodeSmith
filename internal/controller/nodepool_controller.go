@@ -472,6 +472,14 @@ func buildPoolLabelSet(pool *kubenodesmithv1alpha1.NodeSmithPool) map[string]str
 	return labels
 }
 
+func poolRequiresLabel(pool *kubenodesmithv1alpha1.NodeSmithPool, key string) bool {
+	if key == pool.Spec.PoolLabelKey {
+		return true
+	}
+	_, ok := pool.Spec.MachineTemplate.Labels[key]
+	return ok
+}
+
 func podMatchesPool(pod *corev1.Pod, pool *kubenodesmithv1alpha1.NodeSmithPool, poolLabels map[string]string) (bool, bool) {
 	requiresPool := false
 	for key, val := range pod.Spec.NodeSelector {
@@ -479,7 +487,7 @@ func podMatchesPool(pod *corev1.Pod, pool *kubenodesmithv1alpha1.NodeSmithPool, 
 		if !ok || labelVal != val {
 			return false, false
 		}
-		if key == pool.Spec.PoolLabelKey || pool.Spec.MachineTemplate.Labels[key] != "" {
+		if poolRequiresLabel(pool, key) {
 			requiresPool = true
 		}
 	}
@@ -550,7 +558,7 @@ func nodeSelectorTermMatches(term corev1.NodeSelectorTerm, pool *kubenodesmithv1
 				return false, false
 			}
 		}
-		if expr.Key == pool.Spec.PoolLabelKey || pool.Spec.MachineTemplate.Labels[expr.Key] != "" {
+		if poolRequiresLabel(pool, expr.Key) {
 			requiresPool = true
 		}
 	}
