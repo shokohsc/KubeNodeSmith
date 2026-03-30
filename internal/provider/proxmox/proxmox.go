@@ -390,7 +390,7 @@ func buildVirtualMachineOptions(machineName string, spec provider.MachineSpec, o
 // ProvisionMachine creates a new VM in the Proxmox cluster that will eventually join the Kubernetes cluster.
 func (p *Provider) ProvisionMachine(ctx context.Context, spec provider.MachineSpec) (*provider.Machine, error) {
 	// Idempotency: if a VM with this machine name already exists, reuse it
-	if _, existingVM, err := findNodeByVMName(spec.MachineName, ctx, &p.client); err == nil {
+	if existingVM, err := findNodeByVMName(spec.MachineName, ctx, &p.client); err == nil {
 		fmt.Printf("Found existing VM %s on node %s; reusing\n", spec.MachineName, existingVM.Node)
 		if !existingVM.IsRunning() {
 			if task, startErr := existingVM.Start(ctx); startErr != nil {
@@ -457,10 +457,10 @@ func (p *Provider) ProvisionMachine(ctx context.Context, spec provider.MachineSp
 	}, nil
 }
 
-func findNodeByVMName(vmName string, ctx context.Context, proxClient *proxmoxapi.Client) (*proxmoxapi.Node, *proxmoxapi.VirtualMachine, error) {
+func findNodeByVMName(vmName string, ctx context.Context, proxClient *proxmoxapi.Client) (*proxmoxapi.VirtualMachine, error) {
 	nodeStatuses, err := proxClient.Nodes(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("get node statuses: %w", err)
+		return nil, fmt.Errorf("get node statuses: %w", err)
 	}
 
 	for _, nodeStatus := range nodeStatuses {
@@ -485,16 +485,16 @@ func findNodeByVMName(vmName string, ctx context.Context, proxClient *proxmoxapi
 		}
 		for _, vm := range vms {
 			if vm.Name == vmName {
-				return node, vm, nil
+				return vm, nil
 			}
 		}
 	}
-	return nil, nil, errVMNotFound
+	return nil, errVMNotFound
 }
 
 // DeprovisionMachine deletes a VM previously created by ProvisionMachine.
 func (p *Provider) DeprovisionMachine(ctx context.Context, machine provider.Machine) error {
-	_, proxVM, err := findNodeByVMName(machine.KubeNodeName, ctx, &p.client)
+	proxVM, err := findNodeByVMName(machine.KubeNodeName, ctx, &p.client)
 	if err != nil {
 		if errors.Is(err, errVMNotFound) {
 			return fmt.Errorf("VM with name '%s' not found", machine.KubeNodeName)

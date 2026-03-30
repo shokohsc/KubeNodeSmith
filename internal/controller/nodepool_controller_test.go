@@ -77,6 +77,7 @@ var _ = Describe("NodePool controller", func() {
 				Client:   k8sClient,
 				Scheme:   k8sClient.Scheme(),
 				Recorder: record.NewFakeRecorder(32),
+				Config:   cfg,
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -131,6 +132,7 @@ var _ = Describe("NodePool controller", func() {
 				Client:   k8sClient,
 				Scheme:   k8sClient.Scheme(),
 				Recorder: record.NewFakeRecorder(32),
+				Config:   cfg,
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -150,5 +152,6 @@ var _ = Describe("NodePool controller", func() {
 			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 			Expect(cond.Reason).To(Equal("ResourceLimitReached"))
 		})
+
 	})
 })

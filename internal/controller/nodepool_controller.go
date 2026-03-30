@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -59,6 +60,7 @@ type NodePoolReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+	Config   *rest.Config
 }
 
 // +kubebuilder:rbac:groups=kubenodesmith.parawell.cloud,resources=nodesmithpools,verbs=get;list;watch;create;update;patch;delete
@@ -73,7 +75,15 @@ type NodePoolReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *NodePoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx).WithValues("nodesmithpool", req.NamespacedName)
-	var cs = kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	config := r.Config
+	if config == nil {
+		config = ctrl.GetConfigOrDie()
+	}
+	cs, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.Error(err, "failed to build kubernetes clientset")
+		return ctrl.Result{}, err
+	}
 
 	// High-level reconciliation outline:
 	// 1. Fetch the NodeSmithPool; return gracefully if it no longer exists.
@@ -472,6 +482,14 @@ func buildPoolLabelSet(pool *kubenodesmithv1alpha1.NodeSmithPool) map[string]str
 	return labels
 }
 
+func poolRequiresLabel(pool *kubenodesmithv1alpha1.NodeSmithPool, key string) bool {
+	if key == pool.Spec.PoolLabelKey {
+		return true
+	}
+	_, ok := pool.Spec.MachineTemplate.Labels[key]
+	return ok
+}
+
 func podMatchesPool(pod *corev1.Pod, pool *kubenodesmithv1alpha1.NodeSmithPool, poolLabels map[string]string) (bool, bool) {
 	requiresPool := false
 	for key, val := range pod.Spec.NodeSelector {
@@ -479,7 +497,7 @@ func podMatchesPool(pod *corev1.Pod, pool *kubenodesmithv1alpha1.NodeSmithPool, 
 		if !ok || labelVal != val {
 			return false, false
 		}
-		if key == pool.Spec.PoolLabelKey || pool.Spec.MachineTemplate.Labels[key] != "" {
+		if poolRequiresLabel(pool, key) {
 			requiresPool = true
 		}
 	}
@@ -543,14 +561,14 @@ func nodeSelectorTermMatches(term corev1.NodeSelectorTerm, pool *kubenodesmithv1
 			if err != nil {
 				return false, false
 			}
-			if expr.Operator == corev1.NodeSelectorOpGt && !(labelVal > reqVal) {
+			if expr.Operator == corev1.NodeSelectorOpGt && labelVal <= reqVal {
 				return false, false
 			}
-			if expr.Operator == corev1.NodeSelectorOpLt && !(labelVal < reqVal) {
+			if expr.Operator == corev1.NodeSelectorOpLt && labelVal >= reqVal {
 				return false, false
 			}
 		}
-		if expr.Key == pool.Spec.PoolLabelKey || pool.Spec.MachineTemplate.Labels[expr.Key] != "" {
+		if poolRequiresLabel(pool, expr.Key) {
 			requiresPool = true
 		}
 	}
