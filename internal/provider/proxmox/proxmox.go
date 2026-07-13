@@ -59,7 +59,7 @@ func (p *Provider) Endpoint() string {
 }
 
 func generateNewVMID(clusterResources proxmoxapi.ClusterResources, opts Options) (int, error) {
-	if opts.VMIDRange.Upper <= opts.VMIDRange.Lower {
+	if opts.VMIDRange.Upper < opts.VMIDRange.Lower {
 		return 0, fmt.Errorf("invalid VMID range: lower=%d upper=%d", opts.VMIDRange.Lower, opts.VMIDRange.Upper)
 	}
 	span := opts.VMIDRange.Upper - opts.VMIDRange.Lower + 1
