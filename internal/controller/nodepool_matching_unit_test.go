@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	kubenodesmithv1alpha1 "github.com/StealthBadger747/KubeNodeSmith/api/v1alpha1"
@@ -39,6 +40,33 @@ func TestPodMatchesPoolTreatsEmptyValueMachineTemplateLabelAsTargeting(t *testin
 	}
 	if !requires {
 		t.Fatalf("expected empty-value machine template label to mark pod as pool-targeting")
+	}
+}
+
+func TestDetermineNodeCapacityIgnoresClaimsFromOtherPools(t *testing.T) {
+	claims := &kubenodesmithv1alpha1.NodeSmithClaimList{Items: []kubenodesmithv1alpha1.NodeSmithClaim{
+		{
+			Spec: kubenodesmithv1alpha1.NodeSmithClaimSpec{
+				PoolRef: "other-pool",
+				Requirements: &kubenodesmithv1alpha1.NodeSmithClaimRequirements{
+					CPUCores:  40,
+					MemoryMiB: 81920,
+				},
+			},
+		},
+	}}
+	pods := []corev1.Pod{{
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("16"),
+				corev1.ResourceMemory: resource.MustParse("40Gi"),
+			}},
+		}}},
+	}}
+
+	capacity := determineNodeCapacity("mayastor-pool", nil, claims, pods)
+	if capacity.cpuMilli != 16000 || capacity.memBytes != 40*1024*1024*1024 {
+		t.Fatalf("expected pending workload capacity (16 CPU, 40 GiB), got (%d CPU millicores, %d bytes)", capacity.cpuMilli, capacity.memBytes)
 	}
 }
 

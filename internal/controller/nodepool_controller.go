@@ -284,7 +284,7 @@ func (r *NodePoolReconciler) reconcileScaleUp(
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
-	nodeTemplate := determineNodeCapacity(nodesInPool, &claims, candidatePods)
+	nodeTemplate := determineNodeCapacity(nodePool.Name, nodesInPool, &claims, candidatePods)
 	if nodeTemplate.cpuMilli == 0 || nodeTemplate.memBytes == 0 {
 		logger.Info("unable to determine node capacity for pool; skipping scale up")
 		return ctrl.Result{}, nil
@@ -584,7 +584,7 @@ func containsString(list []string, target string) bool {
 	return false
 }
 
-func determineNodeCapacity(nodes []corev1.Node, claims *kubenodesmithv1alpha1.NodeSmithClaimList, pods []corev1.Pod) nodeCapacity {
+func determineNodeCapacity(poolName string, nodes []corev1.Node, claims *kubenodesmithv1alpha1.NodeSmithClaimList, pods []corev1.Pod) nodeCapacity {
 	if len(nodes) > 0 {
 		node := nodes[0]
 		cpu := int64(0)
@@ -599,6 +599,9 @@ func determineNodeCapacity(nodes []corev1.Node, claims *kubenodesmithv1alpha1.No
 	}
 	for i := range claims.Items {
 		claim := claims.Items[i]
+		if claim.Spec.PoolRef != poolName {
+			continue
+		}
 		if claim.Spec.Requirements == nil {
 			continue
 		}
